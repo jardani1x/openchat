@@ -23,6 +23,10 @@ Recommended values (Tailscale):
 - Gateway Base URL: `http://<tailscale-ip>:18789`
 - Request timeout: `120` to `180` seconds
 
+Common mistakes:
+- Do **not** use your static-site port as Gateway URL (e.g. `:18979` for `index.html`).
+- If the page is loaded over **HTTPS**, an **HTTP** Gateway URL will be blocked by browser mixed-content rules.
+
 ## How to get Gateway Base URL and token
 
 ### Local-only setup (same machine)

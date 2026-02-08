@@ -32,6 +32,8 @@ button {
   font-weight: 700;
   cursor: pointer;
 }
+button[disabled] { opacity: 0.6; cursor: not-allowed; }
+#testConnection { background: #8bb7ff; }
 #chat {
   background: var(--panel);
   border-radius: 14px;
