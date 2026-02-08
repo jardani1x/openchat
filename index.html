@@ -8,18 +8,40 @@
   <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 </head>
 <body>
-  <div class="app">
-    <header>
-      <h1>openchat</h1>
-      <button id="openSettings">Settings</button>
-    </header>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <h1>openchat</h1>
+        <button id="toggleSidebar" class="ghost">☰</button>
+      </div>
 
-    <main id="chat"></main>
+      <div class="side-actions">
+        <button id="newChatBtn">+ New chat</button>
+      </div>
 
-    <form id="composer">
-      <textarea id="prompt" placeholder="Ask OpenClaw anything..." rows="2"></textarea>
-      <button type="submit" id="sendBtn">Send</button>
-    </form>
+      <nav id="chatList" class="chat-list"></nav>
+    </aside>
+
+    <section class="main">
+      <header class="topbar">
+        <div>
+          <h2 id="chatTitle">New chat</h2>
+          <p class="muted" id="chatMeta">Ready</p>
+        </div>
+        <button id="openSettings" class="ghost">Settings</button>
+      </header>
+
+      <main id="chat" class="chat"></main>
+
+      <div id="attachments" class="attachments"></div>
+
+      <form id="composer" class="composer">
+        <label class="upload-btn" for="fileInput">Upload</label>
+        <input id="fileInput" type="file" multiple accept="image/*,video/*,.pdf,.txt,.md,.json,.csv,.doc,.docx" hidden />
+        <textarea id="prompt" placeholder="Message openchat..." rows="2"></textarea>
+        <button type="submit" id="sendBtn">Send</button>
+      </form>
+    </section>
   </div>
 
   <dialog id="settingsDialog">
@@ -39,7 +61,7 @@
     <label class="inline">
       <input id="streamReplies" type="checkbox" /> Enable live streaming replies
     </label>
-    <p class="hint">Tip: use your own OpenClaw Gateway URL + token. Values are stored in your browser localStorage.</p>
+    <p class="hint">Tip: token stays in localStorage on your device.</p>
     <div class="actions">
       <button id="testConnection" type="button">Test connection</button>
       <button id="saveSettings">Save</button>
