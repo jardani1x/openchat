@@ -22,8 +22,18 @@ Best balance of security + simplicity.
    - **Gateway Base URL:** `http://<TAILSCALE_IP>:18789`
    - **Gateway Token:** from `~/.openclaw/openclaw.json` (`gateway.auth.token`)
 
-### Optional (nicer URL)
-Use Tailscale Serve/Funnel to expose HTTPS URL in tailnet and use that URL as Base URL.
+> This works best when openchat is served locally or over HTTP. If you use GitHub Pages (`https://...`), your Gateway URL must also be HTTPS.
+
+### Optional (recommended for GitHub Pages): Tailscale Serve HTTPS
+
+On your OpenClaw host:
+
+```bash
+tailscale serve --https=443 http://127.0.0.1:18789
+tailscale serve status
+```
+
+Use the HTTPS URL shown by `tailscale serve status` as your **Gateway Base URL** in openchat.
 
 ---
 

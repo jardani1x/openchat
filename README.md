@@ -33,6 +33,27 @@ Streaming note:
 - Live replies are implemented with HTTP streaming (SSE-style OpenAI chunks), not WebSocket.
 - UX is similar to Telegram typing/live output.
 
+## Troubleshooting remote errors
+
+If you see errors like:
+- `Fetch API cannot load ... due to access control checks`
+- `The network connection was lost`
+
+Use this checklist:
+
+1. **Correct endpoint enabled** in OpenClaw config:
+   - `gateway.http.endpoints.chatCompletions.enabled = true`
+2. **Do not use static-site port** as Gateway URL.
+   - ✅ Gateway is usually `:18789`
+   - ❌ `:18979` is typically your static site server
+3. **HTTPS page cannot call HTTP API** (mixed content).
+   - If using GitHub Pages (`https://...`), your Gateway URL must also be `https://...`
+4. **Avoid raw `https://100.x.x.x:18789`** unless you actually run TLS there.
+   - OpenClaw default gateway is HTTP on 18789.
+
+Recommended fix for GitHub Pages:
+- Put OpenClaw behind an HTTPS endpoint (Tailscale Serve HTTPS, Cloudflare Tunnel, or reverse proxy with TLS), then use that HTTPS URL as Gateway Base URL.
+
 ## How to get Gateway Base URL and token
 
 ### Local-only setup (same machine)
