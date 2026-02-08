@@ -91,8 +91,10 @@ Look for:
 
 ## Remote access options
 
-See [REMOTE_ACCESS.md](./REMOTE_ACCESS.md) for full setup guides:
+- **General options:** [REMOTE_ACCESS.md](./REMOTE_ACCESS.md)
+- **Production-tested runbook (verified):** [TESTED_SETUP.md](./TESTED_SETUP.md)
 
+Options documented:
 1. **Tailscale (recommended)**
 2. **Cloudflare Tunnel**
 3. **Public reverse proxy (Nginx/Caddy)**
