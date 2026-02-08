@@ -2,6 +2,7 @@ const state = {
   chats: JSON.parse(localStorage.getItem('openchat.chats') || '[]'),
   activeChatId: localStorage.getItem('openchat.activeChatId') || null,
   attachments: [],
+  showArchived: localStorage.getItem('openchat.showArchived') === 'true',
   settings: {
     baseUrl: localStorage.getItem('openchat.baseUrl') || '',
     token: localStorage.getItem('openchat.token') || '',
@@ -17,28 +18,59 @@ function nowTitle() { return new Date().toLocaleString(); }
 function saveChats() {
   localStorage.setItem('openchat.chats', JSON.stringify(state.chats));
   localStorage.setItem('openchat.activeChatId', state.activeChatId || '');
+  localStorage.setItem('openchat.showArchived', String(state.showArchived));
 }
 
-function activeChat() {
-  return state.chats.find(c => c.id === state.activeChatId) || null;
-}
+function activeChat() { return state.chats.find(c => c.id === state.activeChatId) || null; }
 
 function ensureInitialChat() {
-  if (!state.chats.length) {
-    state.chats.push({ id: uid(), title: 'New chat', archived: false, messages: [] });
-  }
+  if (!state.chats.length) state.chats.push({ id: uid(), title: 'New chat', archived: false, messages: [] });
   if (!state.activeChatId || !activeChat()) {
     const first = state.chats.find(c => !c.archived) || state.chats[0];
-    state.activeChatId = first.id;
+    state.activeChatId = first?.id || null;
   }
   saveChats();
 }
 
-function renderMessage(role, text) {
-  const $msg = $('<div class="msg">').addClass(role).text(text);
-  $('#chat').append($msg);
+function renderMessage(role, text, opts = {}) {
+  const $wrap = $('<div class="msg-wrap">').addClass(role === 'user' ? 'user-wrap' : '');
+  const $msg = $('<div class="msg">').addClass(role).text(text || '');
+  $wrap.append($msg);
+
+  if (!opts.skipActions && (role === 'user' || role === 'assistant')) {
+    const $actions = $('<div class="msg-actions">');
+    $actions.append($('<button type="button">Copy</button>').on('click', async () => {
+      try { await navigator.clipboard.writeText(text || ''); renderSystemToast('Copied.'); }
+      catch { renderSystemToast('Copy failed.'); }
+    }));
+
+    if (role === 'user') {
+      $actions.append($('<button type="button">Edit</button>').on('click', () => {
+        $('#prompt').val(text || '').focus();
+      }));
+      $actions.append($('<button type="button">Retry</button>').on('click', async () => {
+        await sendMessage(text || '');
+      }));
+    }
+
+    if (role === 'assistant') {
+      $actions.append($('<button type="button">Retry</button>').on('click', async () => {
+        const chat = activeChat();
+        const prevUser = [...(chat?.messages || [])].reverse().find(m => m.role === 'user');
+        if (prevUser) await sendMessage(prevUser.content, { reusePrompt: true });
+      }));
+    }
+
+    $wrap.append($actions);
+  }
+
+  $('#chat').append($wrap);
   $('#chat').scrollTop($('#chat')[0].scrollHeight);
   return $msg;
+}
+
+function renderSystemToast(text) {
+  renderMessage('system', text, { skipActions: true });
 }
 
 function renderAssistantChunked(text, maxChars = 1200) {
@@ -63,37 +95,47 @@ function normalizeBaseUrl(input) {
 }
 
 function validateSettingsForPage(baseUrl) {
-  if (location.protocol === 'https:' && /^http:\/\//i.test(baseUrl)) {
-    return 'Mixed-content blocked: this page is HTTPS but Gateway URL is HTTP.';
-  }
+  if (location.protocol === 'https:' && /^http:\/\//i.test(baseUrl)) return 'Mixed-content blocked: this page is HTTPS but Gateway URL is HTTP.';
   if (!/^https?:\/\//i.test(baseUrl)) return 'Gateway Base URL must start with http:// or https://';
   return null;
 }
 
 function renderChatList() {
   const $list = $('#chatList').empty();
-  state.chats.filter(c => !c.archived).forEach(c => {
+  const chats = state.showArchived ? state.chats.filter(c => c.archived) : state.chats.filter(c => !c.archived);
+
+  if (!chats.length) {
+    $list.append($('<div class="muted">').text(state.showArchived ? 'No archived chats.' : 'No active chats.'));
+  }
+
+  chats.forEach(c => {
     const $item = $('<div class="chat-item">').toggleClass('active', c.id === state.activeChatId);
-    const $title = $('<div class="title">').text(c.title || 'Untitled').on('click', () => {
-      state.activeChatId = c.id; saveChats(); renderAll();
-    });
+    const label = c.archived ? `${c.title || 'Untitled'} (archived)` : (c.title || 'Untitled');
+    const $title = $('<div class="title">').text(label).on('click', () => { state.activeChatId = c.id; saveChats(); renderAll(); });
+
     const $actions = $('<div class="actions">');
-    const $archive = $('<button class="tiny ghost">Archive</button>').on('click', () => {
-      c.archived = true;
-      if (state.activeChatId === c.id) {
-        const next = state.chats.find(x => !x.archived && x.id !== c.id);
-        if (next) state.activeChatId = next.id;
-      }
-      ensureInitialChat(); renderAll();
-    });
-    const $del = $('<button class="tiny ghost">Delete</button>').on('click', () => {
+    if (c.archived) {
+      $actions.append($('<button class="tiny ghost">Restore</button>').on('click', () => { c.archived = false; state.showArchived = false; renderAll(); }));
+    } else {
+      $actions.append($('<button class="tiny ghost">Archive</button>').on('click', () => {
+        c.archived = true;
+        if (state.activeChatId === c.id) {
+          const next = state.chats.find(x => !x.archived && x.id !== c.id);
+          if (next) state.activeChatId = next.id;
+        }
+        ensureInitialChat(); renderAll();
+      }));
+    }
+    $actions.append($('<button class="tiny ghost">Delete</button>').on('click', () => {
       state.chats = state.chats.filter(x => x.id !== c.id);
       ensureInitialChat(); renderAll();
-    });
-    $actions.append($archive, $del);
+    }));
+
     $item.append($title, $actions);
     $list.append($item);
   });
+
+  $('#toggleArchivedBtn').text(state.showArchived ? 'Show active' : 'Show archived');
 }
 
 function renderActiveChat() {
@@ -101,11 +143,13 @@ function renderActiveChat() {
   if (!chat) return;
   $('#chatTitle').text(chat.title || 'New chat');
   $('#chatMeta').text(chat.archived ? 'Archived' : 'Active');
-  const $chat = $('#chat').empty();
+  $('#chat').empty();
+
   if (!chat.messages.length) {
-    renderMessage('system', 'Welcome to openchat. Open Settings to connect your OpenClaw gateway.');
+    renderMessage('system', 'Welcome to openchat. Open Settings to connect your OpenClaw gateway.', { skipActions: true });
     return;
   }
+
   chat.messages.forEach(m => {
     if (m.role === 'assistant') renderAssistantChunked(m.content);
     else renderMessage(m.role, m.content);
@@ -119,7 +163,7 @@ function renderAttachments() {
     const $chip = $('<div class="file-chip">').append(
       $('<span>').text(f.name),
       $('<span class="muted">').text(size),
-      $('<button class="tiny ghost">x</button>').on('click', () => { state.attachments.splice(i, 1); renderAttachments(); })
+      $('<button class="tiny ghost" type="button">x</button>').on('click', () => { state.attachments.splice(i, 1); renderAttachments(); })
     );
     $box.append($chip);
   });
@@ -149,19 +193,19 @@ function saveSettings() {
   state.settings.streamReplies = $('#streamReplies').is(':checked');
 
   const err = validateSettingsForPage(state.settings.baseUrl);
-  if (err) return renderMessage('system', `Settings error: ${err}`);
+  if (err) return renderSystemToast(`Settings error: ${err}`);
 
   Object.entries(state.settings).forEach(([k, v]) => localStorage.setItem(`openchat.${k}`, String(v)));
   $('#settingsDialog')[0].close();
-  renderMessage('system', 'Settings saved.');
+  renderSystemToast('Settings saved.');
 }
 
 async function testConnection() {
   const baseUrl = normalizeBaseUrl($('#baseUrl').val());
   const token = $('#token').val().trim();
   const err = validateSettingsForPage(baseUrl);
-  if (err) return renderMessage('system', `Connection test failed: ${err}`);
-  if (!baseUrl || !token) return renderMessage('system', 'Connection test failed: fill Gateway URL + token first.');
+  if (err) return renderSystemToast(`Connection test failed: ${err}`);
+  if (!baseUrl || !token) return renderSystemToast('Connection test failed: fill Gateway URL + token first.');
 
   try {
     const res = await fetch(`${baseUrl}/v1/chat/completions`, {
@@ -169,25 +213,25 @@ async function testConnection() {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ model: $('#model').val().trim() || undefined, messages: [{ role: 'user', content: 'ping' }], stream: false })
     });
-    if (!res.ok) return renderMessage('system', `Connection test failed: HTTP ${res.status}`);
-    renderMessage('system', 'Connection test passed.');
+    if (!res.ok) return renderSystemToast(`Connection test failed: HTTP ${res.status}`);
+    renderSystemToast('Connection test passed.');
   } catch (e) {
-    renderMessage('system', `Connection test failed: ${e.message}`);
+    renderSystemToast(`Connection test failed: ${e.message}`);
   }
 }
 
-async function sendMessage(prompt) {
+async function sendMessage(prompt, opts = {}) {
   const chat = activeChat();
   if (!chat) return;
 
   if (!state.settings.baseUrl || !state.settings.token) {
-    renderMessage('system', 'Set Gateway URL + token first (Settings).');
+    renderSystemToast('Set Gateway URL + token first (Settings).');
     openSettings();
     return;
   }
 
   const err = validateSettingsForPage(state.settings.baseUrl);
-  if (err) return renderMessage('system', `Error: ${err}`);
+  if (err) return renderSystemToast(`Error: ${err}`);
 
   if (!chat.messages.length && chat.title === 'New chat') chat.title = prompt.slice(0, 36);
 
@@ -197,7 +241,7 @@ async function sendMessage(prompt) {
     content += `\n\n[Attachments selected: ${names}]`;
   }
 
-  chat.messages.push({ role: 'user', content });
+  if (!opts.reusePrompt) chat.messages.push({ role: 'user', content });
   renderAll();
   state.attachments = [];
   $('#sendBtn').prop('disabled', true).text('Sending...');
@@ -235,7 +279,7 @@ async function sendMessage(prompt) {
       return;
     }
 
-    const $typing = renderMessage('assistant', '…').addClass('typing');
+    const $typing = renderMessage('assistant', '…', { skipActions: true }).addClass('typing');
     let acc = '';
     const reader = res.body.getReader();
     const decoder = new TextDecoder('utf-8');
@@ -270,15 +314,30 @@ async function sendMessage(prompt) {
     chat.messages.push({ role: 'assistant', content: finalReply });
     renderAll();
   } catch (e) {
-    renderMessage('system', `Error: ${e.name === 'AbortError' ? `Request timed out after ${state.settings.timeoutSeconds}s` : e.message}`);
+    renderSystemToast(`Error: ${e.name === 'AbortError' ? `Request timed out after ${state.settings.timeoutSeconds}s` : e.message}`);
   } finally {
     $('#sendBtn').prop('disabled', false).text('Send');
   }
 }
 
+function setupDragDrop() {
+  const $target = $('#attachments');
+  $(document).on('dragover', (e) => { e.preventDefault(); $target.addClass('dragover'); });
+  $(document).on('dragleave', (e) => { e.preventDefault(); if (e.target === document || e.target === document.body) $target.removeClass('dragover'); });
+  $(document).on('drop', (e) => {
+    e.preventDefault();
+    $target.removeClass('dragover');
+    const files = Array.from(e.originalEvent.dataTransfer?.files || []);
+    if (!files.length) return;
+    state.attachments.push(...files);
+    renderAttachments();
+  });
+}
+
 $(function () {
   ensureInitialChat();
   renderAll();
+  setupDragDrop();
 
   $('#openSettings').on('click', openSettings);
   $('#saveSettings').on('click', saveSettings);
@@ -289,6 +348,12 @@ $(function () {
     const c = { id: uid(), title: `Chat ${nowTitle()}`, archived: false, messages: [] };
     state.chats.unshift(c);
     state.activeChatId = c.id;
+    state.showArchived = false;
+    renderAll();
+  });
+
+  $('#toggleArchivedBtn').on('click', () => {
+    state.showArchived = !state.showArchived;
     renderAll();
   });
 

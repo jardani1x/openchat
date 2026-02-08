@@ -17,6 +17,7 @@
 
       <div class="side-actions">
         <button id="newChatBtn">+ New chat</button>
+        <button id="toggleArchivedBtn" class="ghost">Show archived</button>
       </div>
 
       <nav id="chatList" class="chat-list"></nav>
@@ -58,8 +59,9 @@
     <label>Request timeout (seconds)
       <input id="timeoutSeconds" type="number" min="10" max="600" step="5" placeholder="120" />
     </label>
-    <label class="inline">
-      <input id="streamReplies" type="checkbox" /> Enable live streaming replies
+    <label class="switch-row" for="streamReplies">
+      <span>Live streaming replies</span>
+      <input id="streamReplies" type="checkbox" />
     </label>
     <p class="hint">Tip: token stays in localStorage on your device.</p>
     <div class="actions">
