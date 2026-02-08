@@ -33,6 +33,9 @@
     <label>Model (optional)
       <input id="model" placeholder="openai-codex/gpt-5.3-codex" />
     </label>
+    <label>Request timeout (seconds)
+      <input id="timeoutSeconds" type="number" min="10" max="600" step="5" placeholder="120" />
+    </label>
     <p class="hint">Tip: use your own OpenClaw Gateway URL + token. Values are stored in your browser localStorage.</p>
     <div class="actions">
       <button id="saveSettings">Save</button>

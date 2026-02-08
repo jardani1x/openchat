@@ -19,6 +19,10 @@ A lightweight web chat app (HTML + CSS + jQuery) for chatting with your OpenClaw
    - Optional **Model** (e.g. `openai-codex/gpt-5.3-codex`)
 4. Save and start chatting.
 
+Recommended values (Tailscale):
+- Gateway Base URL: `http://<tailscale-ip>:18789`
+- Request timeout: `120` to `180` seconds
+
 ## How to get Gateway Base URL and token
 
 ### Local-only setup (same machine)

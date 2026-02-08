@@ -3,7 +3,8 @@ const state = {
   settings: {
     baseUrl: localStorage.getItem('openchat.baseUrl') || '',
     token: localStorage.getItem('openchat.token') || '',
-    model: localStorage.getItem('openchat.model') || ''
+    model: localStorage.getItem('openchat.model') || '',
+    timeoutSeconds: Number(localStorage.getItem('openchat.timeoutSeconds') || 120)
   }
 };
 
@@ -13,10 +14,27 @@ function renderMessage(role, text) {
   $('#chat').scrollTop($('#chat')[0].scrollHeight);
 }
 
+function renderAssistantChunked(text, maxChars = 1200) {
+  if (!text || text.length <= maxChars) return renderMessage('assistant', text || '');
+  const blocks = text.split(/\n\n+/);
+  let bucket = '';
+  for (const block of blocks) {
+    const candidate = bucket ? `${bucket}\n\n${block}` : block;
+    if (candidate.length > maxChars && bucket) {
+      renderMessage('assistant', bucket);
+      bucket = block;
+    } else {
+      bucket = candidate;
+    }
+  }
+  if (bucket) renderMessage('assistant', bucket);
+}
+
 function openSettings() {
   $('#baseUrl').val(state.settings.baseUrl);
   $('#token').val(state.settings.token);
   $('#model').val(state.settings.model);
+  $('#timeoutSeconds').val(state.settings.timeoutSeconds);
   $('#settingsDialog')[0].showModal();
 }
 
@@ -24,9 +42,11 @@ function saveSettings() {
   state.settings.baseUrl = $('#baseUrl').val().trim().replace(/\/$/, '');
   state.settings.token = $('#token').val().trim();
   state.settings.model = $('#model').val().trim();
+  state.settings.timeoutSeconds = Number($('#timeoutSeconds').val() || 120);
   localStorage.setItem('openchat.baseUrl', state.settings.baseUrl);
   localStorage.setItem('openchat.token', state.settings.token);
   localStorage.setItem('openchat.model', state.settings.model);
+  localStorage.setItem('openchat.timeoutSeconds', String(state.settings.timeoutSeconds));
   $('#settingsDialog')[0].close();
   renderMessage('system', 'Settings saved.');
 }
@@ -47,6 +67,10 @@ async function sendMessage(prompt) {
     stream: false
   };
 
+  const controller = new AbortController();
+  const timeoutMs = Math.max(10000, (state.settings.timeoutSeconds || 120) * 1000);
+  const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
+
   try {
     const res = await fetch(`${state.settings.baseUrl}/v1/chat/completions`, {
       method: 'POST',
@@ -54,7 +78,8 @@ async function sendMessage(prompt) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${state.settings.token}`
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: controller.signal
     });
 
     if (!res.ok) {
@@ -65,9 +90,15 @@ async function sendMessage(prompt) {
     const data = await res.json();
     const reply = data?.choices?.[0]?.message?.content || '(No response)';
     state.messages.push({ role: 'assistant', content: reply });
-    renderMessage('assistant', reply);
+    renderAssistantChunked(reply);
   } catch (err) {
-    renderMessage('system', `Error: ${err.message}`);
+    if (err?.name === 'AbortError') {
+      renderMessage('system', `Error: Request timed out after ${state.settings.timeoutSeconds}s`);
+    } else {
+      renderMessage('system', `Error: ${err.message}`);
+    }
+  } finally {
+    clearTimeout(timer);
   }
 }
 
