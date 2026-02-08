@@ -19,6 +19,41 @@ A lightweight web chat app (HTML + CSS + jQuery) for chatting with your OpenClaw
    - Optional **Model** (e.g. `openai-codex/gpt-5.3-codex`)
 4. Save and start chatting.
 
+## How to get Gateway Base URL and token
+
+### Local-only setup (same machine)
+
+Use:
+
+- **Gateway Base URL:** `http://127.0.0.1:18789`
+
+Get token from OpenClaw config:
+
+```bash
+cat ~/.openclaw/openclaw.json
+```
+
+Look for:
+
+```json
+"gateway": {
+  "auth": {
+    "mode": "token",
+    "token": "YOUR_GATEWAY_TOKEN"
+  }
+}
+```
+
+### Remote/device setup (phone/another laptop)
+
+`127.0.0.1` only works on the same machine. For remote access, expose your Gateway with LAN/Tailscale/reverse proxy, then use that reachable URL as Base URL.
+
+### Security
+
+- Treat Gateway token like a password.
+- Never commit it to GitHub.
+- Rotate token if exposed.
+
 ## Security Note
 
 This is a static frontend. Your token is stored in browser localStorage. Use only in trusted environments.
