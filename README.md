@@ -54,6 +54,14 @@ Look for:
 - Never commit it to GitHub.
 - Rotate token if exposed.
 
+## Remote access options
+
+See [REMOTE_ACCESS.md](./REMOTE_ACCESS.md) for full setup guides:
+
+1. **Tailscale (recommended)**
+2. **Cloudflare Tunnel**
+3. **Public reverse proxy (Nginx/Caddy)**
+
 ## Security Note
 
 This is a static frontend. Your token is stored in browser localStorage. Use only in trusted environments.
