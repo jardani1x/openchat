@@ -4,7 +4,8 @@ const state = {
     baseUrl: localStorage.getItem('openchat.baseUrl') || '',
     token: localStorage.getItem('openchat.token') || '',
     model: localStorage.getItem('openchat.model') || '',
-    timeoutSeconds: Number(localStorage.getItem('openchat.timeoutSeconds') || 120)
+    timeoutSeconds: Number(localStorage.getItem('openchat.timeoutSeconds') || 120),
+    streamReplies: localStorage.getItem('openchat.streamReplies') === 'true'
   }
 };
 
@@ -12,6 +13,7 @@ function renderMessage(role, text) {
   const $msg = $('<div class="msg">').addClass(role).text(text);
   $('#chat').append($msg);
   $('#chat').scrollTop($('#chat')[0].scrollHeight);
+  return $msg;
 }
 
 function normalizeBaseUrl(input) {
@@ -52,6 +54,7 @@ function openSettings() {
   $('#token').val(state.settings.token);
   $('#model').val(state.settings.model);
   $('#timeoutSeconds').val(state.settings.timeoutSeconds);
+  $('#streamReplies').prop('checked', !!state.settings.streamReplies);
   $('#settingsDialog')[0].showModal();
 }
 
@@ -60,6 +63,7 @@ function saveSettings() {
   state.settings.token = $('#token').val().trim();
   state.settings.model = $('#model').val().trim();
   state.settings.timeoutSeconds = Number($('#timeoutSeconds').val() || 120);
+  state.settings.streamReplies = $('#streamReplies').is(':checked');
 
   const validationError = validateSettingsForPage(state.settings.baseUrl);
   if (validationError) {
@@ -71,6 +75,7 @@ function saveSettings() {
   localStorage.setItem('openchat.token', state.settings.token);
   localStorage.setItem('openchat.model', state.settings.model);
   localStorage.setItem('openchat.timeoutSeconds', String(state.settings.timeoutSeconds));
+  localStorage.setItem('openchat.streamReplies', String(state.settings.streamReplies));
   $('#settingsDialog')[0].close();
   renderMessage('system', 'Settings saved.');
 }
@@ -118,45 +123,78 @@ async function sendMessage(prompt) {
   const payload = {
     model: state.settings.model || undefined,
     messages: state.messages.map(m => ({ role: m.role, content: m.content })),
-    stream: false
+    stream: !!state.settings.streamReplies
   };
 
   const timeoutMs = Math.max(10000, (state.settings.timeoutSeconds || 120) * 1000);
 
   try {
-    let lastErr = null;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
-      try {
-        const res = await fetch(`${state.settings.baseUrl}/v1/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${state.settings.token}`
-          },
-          body: JSON.stringify(payload),
-          signal: controller.signal
-        });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
 
-        if (!res.ok) {
-          const t = await res.text();
-          throw new Error(`HTTP ${res.status}: ${t.slice(0, 240)}`);
+    const res = await fetch(`${state.settings.baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${state.settings.token}`
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`HTTP ${res.status}: ${t.slice(0, 240)}`);
+    }
+
+    if (!state.settings.streamReplies) {
+      const data = await res.json();
+      const reply = data?.choices?.[0]?.message?.content || '(No response)';
+      state.messages.push({ role: 'assistant', content: reply });
+      renderAssistantChunked(reply);
+      clearTimeout(timer);
+      return;
+    }
+
+    const typing = renderMessage('assistant', '…').addClass('typing');
+    let accumulated = '';
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+
+      const events = buf.split('\n\n');
+      buf = events.pop() || '';
+
+      for (const evt of events) {
+        const line = evt.split('\n').find(l => l.startsWith('data: '));
+        if (!line) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+        try {
+          const json = JSON.parse(data);
+          const delta = json?.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            accumulated += delta;
+            typing.removeClass('typing').text(accumulated);
+            $('#chat').scrollTop($('#chat')[0].scrollHeight);
+          }
+        } catch (_) {
+          // ignore partial JSON frames
         }
-
-        const data = await res.json();
-        const reply = data?.choices?.[0]?.message?.content || '(No response)';
-        state.messages.push({ role: 'assistant', content: reply });
-        renderAssistantChunked(reply);
-        return;
-      } catch (err) {
-        lastErr = err;
-        if (attempt < 2) await new Promise(r => setTimeout(r, 900));
-      } finally {
-        clearTimeout(timer);
       }
     }
 
+    clearTimeout(timer);
+    const finalReply = accumulated || '(No response)';
+    typing.removeClass('typing').text(finalReply);
+    state.messages.push({ role: 'assistant', content: finalReply });
+  } catch (lastErr) {
     if (lastErr?.name === 'AbortError') {
       renderMessage('system', `Error: Request timed out after ${state.settings.timeoutSeconds}s`);
     } else if (/Failed to fetch|NetworkError|network connection was lost/i.test(lastErr?.message || '')) {

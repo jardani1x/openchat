@@ -76,6 +76,8 @@ dialog {
   color: var(--text);
 }
 label { display: block; margin: 10px 0; }
+label.inline { display: flex; align-items: center; gap: 8px; }
+.typing { opacity: 0.8; font-style: italic; color: var(--muted); }
 input {
   width: 100%;
   margin-top: 6px;

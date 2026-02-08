@@ -6,7 +6,9 @@ A lightweight web chat app (HTML + CSS + jQuery) for chatting with your OpenClaw
 
 - Clean chat UI
 - Connects to OpenClaw OpenAI-compatible endpoint (`/v1/chat/completions`)
-- Configurable Gateway URL, token, and model
+- Optional **live streaming replies** (token-by-token feel)
+- Connection test in Settings
+- Configurable Gateway URL, token, model, and timeout
 - Stores settings locally in browser (`localStorage`)
 
 ## Setup
@@ -26,6 +28,10 @@ Recommended values (Tailscale):
 Common mistakes:
 - Do **not** use your static-site port as Gateway URL (e.g. `:18979` for `index.html`).
 - If the page is loaded over **HTTPS**, an **HTTP** Gateway URL will be blocked by browser mixed-content rules.
+
+Streaming note:
+- Live replies are implemented with HTTP streaming (SSE-style OpenAI chunks), not WebSocket.
+- UX is similar to Telegram typing/live output.
 
 ## How to get Gateway Base URL and token
 
