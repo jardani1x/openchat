@@ -107,6 +107,23 @@ This is a static frontend. Your token is stored in browser localStorage. Use onl
 
 Open `index.html` directly, or serve with any static server.
 
+## Cloudflare Worker proxy file
+
+If you want GitHub Pages + OpenClaw without browser CORS issues, this repo now includes a Worker script at:
+
+- `index.js`
+
+Use it in Cloudflare Worker (Quick Edit), then set secrets:
+
+- `OPENCLAW_BASE_URL`
+- `OPENCLAW_TOKEN`
+- optional `ALLOW_ORIGIN` (e.g. `https://jardani1x.github.io`)
+
+Then in OpenChat Settings:
+
+- Gateway Base URL = your Worker URL (`https://<worker>.workers.dev`)
+- Gateway Token = leave blank (Worker injects server-side)
+
 ## License
 
 MIT
